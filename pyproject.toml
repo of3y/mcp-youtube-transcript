@@ -1,0 +1,39 @@
+[project]
+name = "mcp-youtube-transcript"
+version = "0.5.0"
+description = "YouTube Video Intelligence Suite - Enhanced MCP server with tools, resources, and prompts for transcript extraction and AI-powered video analysis"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp[cli]>=1.2.0",
+    "yt-dlp>=2023.12.30",
+]
+
+[project.scripts]
+youtube-transcript-server = "main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=8.3.5",
+    "pytest-asyncio>=1.0.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.hatch.build.targets.wheel]
+include = [
+    "/main.py",
+    "/enhanced_server.py", 
+    "/server.py",
+    "/src/**/*.py",
+]
