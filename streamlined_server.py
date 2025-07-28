@@ -693,10 +693,15 @@ def list_available_resources() -> List[Dict[str, Any]]:
             channel = "Unknown Channel"
             
             for line in lines:
+                # Handle both formats: "- **Title**:" (manual) and "- **Title**" (MCP server)
                 if line.startswith('- **Title**:'):
                     title = line.replace('- **Title**:', '').strip()
+                elif line.startswith('- **Title**'):
+                    title = line.replace('- **Title**', '').strip().lstrip(':').strip()
                 elif line.startswith('- **Channel**:'):
                     channel = line.replace('- **Channel**:', '').strip()
+                elif line.startswith('- **Channel**'):
+                    channel = line.replace('- **Channel**', '').strip().lstrip(':').strip()
             
             resources.append({
                 'video_id': video_id,

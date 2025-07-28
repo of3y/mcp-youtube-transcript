@@ -61,18 +61,34 @@ def check_ytdlp_available() -> bool:
         return False
 
 def get_video_metadata(video_url: str) -> Dict[str, Any]:
-    """Get video metadata using yt-dlp."""
+    """Get video metadata using yt-dlp with enhanced error handling."""
     if not check_ytdlp_available():
+        print("⚠️  yt-dlp not available for metadata extraction")
         return {}
     
     try:
         cmd = ['yt-dlp', '--dump-json', '--no-download', video_url]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        
         if result.returncode == 0:
-            return json.loads(result.stdout)
+            metadata = json.loads(result.stdout)
+            print(f"✅ Successfully extracted metadata for: {metadata.get('title', 'Unknown Title')}")
+            return metadata
+        else:
+            print(f"❌ yt-dlp metadata extraction failed:")
+            print(f"   Return code: {result.returncode}")
+            print(f"   Error: {result.stderr}")
+            return {}
+            
+    except subprocess.TimeoutExpired:
+        print("⚠️  Metadata extraction timed out after 30 seconds")
+        return {}
+    except json.JSONDecodeError as e:
+        print(f"⚠️  Failed to parse yt-dlp JSON output: {e}")
+        return {}
     except Exception as e:
         print(f"⚠️  Could not get video metadata: {e}")
-    return {}
+        return {}
 
 def extract_transcript(video_url: str, language: str = "en", metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Extract transcript using yt-dlp with SRV1 format preference and automatic fallback.
@@ -332,12 +348,42 @@ def analyze_transcript_quality(lines: List[str], video_info: Optional[Dict[str, 
                          'Poor' if quality_score >= 20 else 'Very Poor'
     }
 
-def create_mcp_markdown(result: Dict[str, Any], video_url: str, metadata: Dict[str, Any]) -> str:
-    """Create markdown content optimized for MCP resource usage."""
+def create_mcp_markdown(result: Dict[str, Any], video_url: str, metadata: Dict[str, Any], minimal: bool = False) -> str:
+    """Create markdown content optimized for MCP resource usage.
+    
+    Args:
+        result: Transcript extraction result
+        video_url: YouTube video URL
+        metadata: Video metadata
+        minimal: If True, generate minimal format optimized for Claude
+    """
     video_id = extract_video_id(video_url)
     title = metadata.get('title', f'Video {video_id}')
     
-    # Create clean markdown content
+    if minimal:
+        # Minimal format optimized for Claude Desktop
+        duration_str = metadata.get('duration_string', 'Unknown')
+        channel = metadata.get('uploader', 'Unknown')
+        quality_rating = result.get('quality_metrics', {}).get('quality_rating', 'Unknown')
+        
+        # Generate clean plain text script 
+        plain_script = create_plain_text_script(result['lines'], remove_duplicates=True, aggressive_dedup=True)
+        
+        markdown_content = f"""# {title}
+
+**Channel:** {channel} | **Duration:** {duration_str} | **ID:** {video_id}
+**URL:** {video_url}
+
+---
+
+{plain_script}
+
+---
+*Extracted: {datetime.now().strftime('%Y-%m-%d')} | Quality: {quality_rating}*
+"""
+        return markdown_content
+    
+    # Full format (existing verbose format)
     markdown_content = f"""# {title}
 
 ## Video Information
@@ -459,7 +505,7 @@ async def get_transcript(video_id: str):
     
     return markdown_content
 
-def save_mcp_resource(result: Dict[str, Any], video_url: str, metadata: Dict[str, Any], output_dir: str) -> str:
+def save_mcp_resource(result: Dict[str, Any], video_url: str, metadata: Dict[str, Any], output_dir: str, minimal: bool = False) -> str:
     """Save transcript as MCP-ready markdown resource."""
     try:
         video_id = extract_video_id(video_url)
@@ -469,11 +515,13 @@ def save_mcp_resource(result: Dict[str, Any], video_url: str, metadata: Dict[str
         safe_title = re.sub(r'[^\w\s-]', '', title).strip()
         safe_title = re.sub(r'[-\s]+', '-', safe_title)[:50]
         
-        filename = f"{video_id}_{safe_title}.md"
+        # Add format indicator to filename for minimal format
+        format_suffix = "_minimal" if minimal else ""
+        filename = f"{video_id}_{safe_title}{format_suffix}.md"
         filepath = os.path.join(output_dir, filename)
         
         # Create markdown content
-        markdown_content = create_mcp_markdown(result, video_url, metadata)
+        markdown_content = create_mcp_markdown(result, video_url, metadata, minimal)
         
         # Save file
         os.makedirs(output_dir, exist_ok=True)
@@ -854,6 +902,9 @@ Examples:
   
   # Save to specific directory
   uv run python scripts/youtube_to_mcp.py "https://youtu.be/dQw4w9WgXcQ" --output ./resources/transcripts
+  
+  # Generate minimal format optimized for Claude
+  uv run python scripts/youtube_to_mcp.py "https://youtu.be/dQw4w9WgXcQ" --minimal
         """
     )
     
@@ -862,6 +913,8 @@ Examples:
     parser.add_argument('--output', default='./resources/transcripts', 
                         help='Output directory (default: ./resources/transcripts)')
     parser.add_argument('--debug', action='store_true', help='Enable debug output')
+    parser.add_argument('--minimal', action='store_true', 
+                        help='Generate minimal format optimized for Claude (less verbose)')
     parser.add_argument('--test-script', action='store_true', 
                         help='Test script generation with current transcript')
     
@@ -872,6 +925,7 @@ Examples:
     print(f"Video: {args.video_url}")
     print(f"Method: yt-dlp (reliable)")
     print(f"Language: {args.lang}")
+    print(f"Format: {'Minimal (Claude-optimized)' if args.minimal else 'Full (detailed)'}")
     print(f"Output: {args.output}")
     print()
     
@@ -923,7 +977,7 @@ Examples:
             print(f"   Timestamp coverage: {quality_metrics.get('timestamp_coverage', 0) * 100:.1f}%")
         
         # Save MCP resource
-        filepath = save_mcp_resource(result, args.video_url, metadata, args.output)
+        filepath = save_mcp_resource(result, args.video_url, metadata, args.output, args.minimal)
         if filepath:
             print(f"💾 Saved: {os.path.basename(filepath)}")
             print(f"\n" + "=" * 50)
