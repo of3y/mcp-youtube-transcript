@@ -66,20 +66,48 @@ Get the transcript from: https://www.youtube.com/watch?v=jNQXAC9IVRw
 
 **📖 For complete setup instructions, see [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)**
 
-## 🛠️ Manual Transcript Extraction
+## 🛠️ Standalone Extraction Tools
 
-Extract transcripts directly without Claude Desktop:
+### NEW: Professional CLI Tool (Decoupled from MCP)
+
+A complete standalone extraction system with transcript + comment support:
 
 ```bash
-# Basic extraction
+# Extract transcript only
+uv run python scripts/youtube_extract.py <video-url>
+
+# Extract transcript + comments
+uv run python scripts/youtube_extract.py <video-url> --comments --max-comments 100
+
+# With custom options
+uv run python scripts/youtube_extract.py <video-url> \
+  --comments \
+  --max-comments 50 \
+  --comment-replies \
+  --format both \
+  --output ./data
+
+# Minimal format optimized for Claude
+uv run python scripts/youtube_extract.py <video-url> --minimal
+```
+
+**Features:**
+- ✅ Transcript extraction (multi-format fallback)
+- ✅ Comment extraction with threading
+- ✅ Quality analysis and metrics
+- ✅ Multiple output formats (Markdown, JSON)
+- ✅ Completely standalone (no MCP dependency)
+- ✅ Production-ready error handling
+
+**📖 Full documentation: [docs/STANDALONE_CLI.md](docs/STANDALONE_CLI.md)**
+
+### Legacy Tool (MCP-focused)
+
+```bash
+# Basic extraction for MCP resources
 uv run scripts/youtube_to_mcp.py <video-url>
 
-# Examples
-uv run scripts/youtube_to_mcp.py https://www.youtube.com/watch?v=dQw4w9WgXcQ
-uv run scripts/youtube_to_mcp.py https://youtu.be/jNQXAC9IVRw
-
 # Output saved to resources/transcripts/ as markdown files
-# Perfect for standalone use or integration with other tools
 ```
 
 ## 🌟 Features
@@ -166,10 +194,18 @@ Guided workflows for comprehensive analysis:
 
 ## 🏗️ Architecture
 
-### Single-File Design
+### Modular Design
+- **src/youtube_core/** - Standalone extraction library (NEW!)
+  - `extractor.py` - Core extraction class
+  - `transcript.py` - Transcript extraction logic
+  - `comments.py` - Comment retrieval system
+  - `quality.py` - Quality analysis engine
+  - `formatters.py` - Output formatting
+  - `config.py` - Configuration management
 - **streamlined_server.py** - Complete MCP server implementation
 - **main.py** - Entry point for Claude Desktop integration
-- **scripts/youtube_to_mcp.py** - Standalone transcript extraction tool
+- **scripts/youtube_extract.py** - Professional standalone CLI tool
+- **scripts/youtube_to_mcp.py** - Legacy MCP-focused tool
 
 ### Quality-First Approach
 - **Smart Format Selection** - Automatic fallback ensures best available quality
@@ -177,9 +213,23 @@ Guided workflows for comprehensive analysis:
 - **Safety Validation** - Multi-layer content quality checks
 - **Professional Output** - Industry-standard transcript formatting
 
+### Standalone Core Library
+The new `youtube_core` module provides:
+- **Zero MCP dependency** - Use independently anywhere
+- **Programmatic API** - Import and use in your Python projects
+- **Complete functionality** - Transcript + comments + metadata + quality analysis
+- **Production-ready** - Error handling, timeouts, retries
+
+```python
+from youtube_core import YouTubeExtractor
+
+extractor = YouTubeExtractor()
+result = extractor.extract(url, include_comments=True)
+```
+
 ### Zero Dependencies Bloat
 - **yt-dlp** - Reliable transcript extraction (no cloud server blocking)
-- **mcp** - Model Context Protocol integration
+- **mcp** - Model Context Protocol integration (optional for standalone use)
 - **Pure Python** - No heavy AI libraries or API dependencies
 
 ## 📈 Version History
